@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 英语私教 - LinguaChat</title>
+    <!-- 引入 Tailwind CSS (无需安装，直接获得现代UI) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入图标库 FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* 隐藏滚动条但保留功能 */
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* 消息出现动画 */
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message-anim { animation: slideIn 0.3s ease-out forwards; }
+
+        /* 正在输入动画点 */
+        .typing-dot { animation: typing 1.4s infinite ease-in-out both; }
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 h-screen flex flex-col font-sans text-slate-800">
+
+    <!-- 1. 顶部导航栏 -->
+    <header class="bg-white px-6 py-4 flex justify-between items-center shadow-sm z-10 sticky top-0">
+        <div class="flex items-center gap-4">
+            <div class="relative">
+                <!-- 教师头像 -->
+                <img src="https://api.dicebear.com/7.x/notionists/svg?seed=Sarah&backgroundColor=e0f2fe" alt="AI Tutor" class="w-12 h-12 rounded-full border-2 border-indigo-100 p-1">
+                <span class="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold text-slate-800">Sarah 老师</h1>
+                <p class="text-xs text-indigo-500 font-medium bg-indigo-50 px-2 py-0.5 rounded-full inline-block">ESL 认证 • 在线</p>
+            </div>
+        </div>
+        <button class="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center transition text-slate-400">
+            <i class="fa-solid fa-ellipsis-vertical"></i>
+        </button>
+    </header>
+
+    <!-- 2. 聊天记录区域 -->
+    <main id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide bg-[#f8fafc]">
+        
+        <!-- 时间戳 -->
+        <div class="text-center">
+            <span class="text-[10px] text-slate-400 bg-slate-100 px-2 py-1 rounded-full">Today, 10:00 AM</span>
+        </div>
+
+        <!-- 初始欢迎语 -->
+        <div class="flex items-start gap-3 message-anim">
+            <img src="https://api.dicebear.com/7.x/notionists/svg?seed=Sarah&backgroundColor=e0f2fe" class="w-9 h-9 rounded-full mt-1 border border-white shadow-sm">
+            <div class="bg-white p-4 rounded-2xl rounded-tl-none shadow-sm border border-slate-100 max-w-[85%]">
+                <p class="text-[15px] leading-relaxed text-slate-700">
+                    Hi! I'm Sarah, your personal English tutor. 👋 <br><br>
+                    I can help you with <b>Grammar</b>, <b>Vocabulary</b>, or just have a casual chat.
+                    <br><span class="text-sm text-slate-400 mt-2 block">Try saying: "我要学英语" or "Correct my sentence".</span>
+                </p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- 3. 底部输入控制区 -->
+    <footer class="bg-white border-t border-slate-100 p-4 pb-6">
+        <!-- 快捷指令栏 -->
+        <div class="flex gap-2 mb-3 overflow-x-auto no-scrollbar pb-1">
+            <button onclick="quickInput('How to say this in English?')" class="text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full hover:bg-indigo-100 transition whitespace-nowrap font-medium">
+                🔤 怎么用英语说...
+            </button>
+            <button onclick="quickInput('Please correct my grammar.')" class="text-xs bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full hover:bg-emerald-100 transition whitespace-nowrap font-medium">
+                ✅ 帮我纠正语法
+            </button>
+            <button onclick="quickInput('Let\'s practice role-play.')" class="text-xs bg-orange-50 text-orange-600 px-3 py-1.5 rounded-full hover:bg-orange-100 transition whitespace-nowrap font-medium">
+                🎭 角色扮演练习
+            </button>
+        </div>
+
+        <!-- 输入框容器 -->
+        <div class="relative flex items-end gap-2 bg-slate-50 p-2 rounded-2xl border border-slate-200 focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-50 transition-all duration-200 shadow-inner">
+            <textarea id="user-input" rows="1" class="w-full bg-transparent border-none focus:ring-0 resize-none max-h-32 py-3 px-3 text-[15px] text-slate-700 placeholder-slate-400" placeholder="Type a message to practice..."></textarea>
+            
+            <button id="send-btn" class="mb-1 bg-indigo-600 hover:bg-indigo-700 text-white w-10 h-10 rounded-xl flex items-center justify-center transition shadow-md shadow-indigo-200 active:scale-95">
+                <i class="fa-solid fa-paper-plane text-sm"></i>
+            </button>
+        </div>
+    </footer>
+
+    <script>
+        // --- 核心逻辑 ---
+
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        // 1. 输入框高度自适应
+        userInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+            if(this.value === '') this.style.height = 'auto';
+        });
+
+        // 2. 绑定事件
+        userInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+            }
+        });
+        sendBtn.addEventListener('click', handleSend);
+
+        // 快捷按钮点击
+        window.quickInput = function(text) {
+            userInput.value = text;
+            userInput.focus();
+        }
+
+        // 3. 发送处理逻辑
+        function handleSend() {
+            const text = userInput.value.trim();
+            if (!text) return;
+
+            // 显示用户消息
+            appendMessage('user', text);
+            userInput.value = '';
+            userInput.style.height = 'auto';
+            
+            // 显示正在输入状态
+            const loadingId = showLoading();
+            scrollToBottom();
+
+            // --- 模拟后端 API 响应逻辑 (根据你的要求，这里是专门针对英语教学的逻辑) ---
+            setTimeout(() => {
+                removeLoading(loadingId); // 移除加载动画
+                const reply = generateTeacherResponse(text); // 生成老师的回复
+                appendMessage('ai', reply); // 显示回复
+            }, 1200); // 模拟 1.2秒 网络延迟
+        }
+
+        // 4. 核心：模拟英语老师的回复逻辑 (Mock Data)
+        function generateTeacherResponse(input) {
+            const lowerInput = input.toLowerCase();
+
+            // 场景 1: 用户想学英语
+            if (lowerInput.includes('学英语') || lowerInput.includes('learn english') || lowerInput.includes('study english')) {
+                return `That is a great goal! 🌟 I'd love to help you improve your English. <br><br>We can focus on:<br>1. 🗣️ **Daily Conversation**<br>2. 📝 **Grammar Correction**<br>3. 🏢 **Business English**<br><br>Which one are you interested in?`;
+            }
+
+            // 场景 2: 打招呼
+            if (lowerInput.match(/^(hi|hello|hey|你好)/)) {
+                return `Hello there! 😊 How is your day going? Feel free to tell me in English so we can practice!`;
+            }
+
+            // 场景 3: 纠正语法 (简单的关键词触发)
+            if (lowerInput.includes('correct') || lowerInput.includes('纠正') || lowerInput.includes('grammar')) {
+                return `Sure, please send me the sentence you want me to check. I'll explain the grammar rules for you! 🤓`;
+            }
+
+            // 场景 4: 内容太短
+            if (input.length < 4) {
+                return `Could you say a bit more? Try to use a complete sentence. For example: *"I am happy today."*`;
+            }
+
+            // 场景 5: 默认的鼓励式教学回复
+            return `I understand. You said: "${input}".<br><br>✨ **Native Tip:** A more natural way to say this might be: <br><div class="bg-indigo-50 p-2 rounded mt-1 text-indigo-800 font-medium">"${input} (refined version)"</div><br>Keep going, you're doing great! What else do you want to talk about?`;
+        }
+
+        // 5. DOM 操作辅助函数
+        function appendMessage(role, text) {
+            const div = document.createElement('div');
+            div.className = `flex items-start gap-3 message-anim ${role === 'user' ? 'flex-row-reverse' : ''}`;
+            
+            // 头像
+            const avatar = role === 'ai' 
+                ? '<img src="https://api.dicebear.com/7.x/notionists/svg?seed=Sarah&backgroundColor=e0f2fe" class="w-9 h-9 rounded-full mt-1 border border-white shadow-sm">'
+                : '<div class="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold mt-1 shadow-md shadow-indigo-200">ME</div>';
+
+            // 气泡颜色
+            const bubbleStyle = role === 'user'
+                ? 'bg-indigo-600 text-white rounded-tr-none shadow-md shadow-indigo-100'
+                : 'bg-white text-slate-700 rounded-tl-none shadow-sm border border-slate-100';
+
+            div.innerHTML = `
+                ${avatar}
+                <div class="${bubbleStyle} p-3.5 rounded-2xl max-w-[85%] text-[15px] leading-relaxed break-words">
+                    ${text}
+                </div>
+            `;
+            
+            chatContainer.appendChild(div);
+            scrollToBottom();
+        }
+
+        function showLoading() {
+            const id = 'loading-' + Date.now();
+            const div = document.createElement('div');
+            div.id = id;
+            div.className = 'flex items-start gap-3 message-anim';
+            div.innerHTML = `
+                <img src="https://api.dicebear.com/7.x/notionists/svg?seed=Sarah&backgroundColor=e0f2fe" class="w-9 h-9 rounded-full mt-1 border border-white shadow-sm">
+                <div class="bg-white px-4 py-3 rounded-2xl rounded-tl-none shadow-sm border border-slate-100">
+                    <div class="flex gap-1.5 items-center h-5">
+                        <div class="w-1.5 h-1.5 bg-slate-400 rounded-full typing-dot" style="animation-delay: 0s"></div>
+                        <div class="w-1.5 h-1.5 bg-slate-400 rounded-full typing-dot" style="animation-delay: 0.2s"></div>
+                        <div class="w-1.5 h-1.5 bg-slate-400 rounded-full typing-dot" style="animation-delay: 0.4s"></div>
+                    </div>
+                </div>
+            `;
+            chatContainer.appendChild(div);
+            return id;
+        }
+
+        function removeLoading(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    </script>
+</body>
+</html>
